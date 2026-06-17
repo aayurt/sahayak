@@ -1,0 +1,36 @@
+{
+  "name": "sahayak",
+  "private": true,
+  "description": "AI Desktop Workspace — voice-first AI assistant, agent, knowledge graphs, and system monitor",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "./run.sh",
+    "start:server": "./run.sh --no-voice --port 9090",
+    "start:full": "./run.sh",
+    "dev": "./run.sh",
+    "dev:desktop": "pnpm --filter @sahayak/desktop dev",
+    "dev:server": "pnpm --filter @sahayak/server dev",
+    "dev:ui": "pnpm --filter @sahayak/ui dev",
+    "build": "pnpm -r build",
+    "build:ui": "pnpm --filter @sahayak/ui build",
+    "build:server": "pnpm --filter @sahayak/server build",
+    "build:desktop": "pnpm --filter @sahayak/desktop build",
+    "db:push": "pnpm --filter @sahayak/shared db:push",
+    "db:generate": "pnpm --filter @sahayak/shared db:generate",
+    "db:studio": "pnpm --filter @sahayak/shared db:studio",
+    "package:mac": "pnpm --filter @sahayak/desktop package:mac",
+    "package:win": "pnpm --filter @sahayak/desktop package:win",
+    "package:linux": "pnpm --filter @sahayak/desktop package:linux",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write 'packages/*/src/**/*.{ts,tsx,css}'",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:server": "pnpm --filter @sahayak/server test",
+    "test:ui": "pnpm --filter @sahayak/ui test",
+    "test:shared": "pnpm --filter @sahayak/shared test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
