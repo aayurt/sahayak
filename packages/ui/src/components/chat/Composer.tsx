@@ -2,7 +2,7 @@ import { createSignal, Show, For } from 'solid-js'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { 
   SendHorizonal, Square, Mic, X, Settings2, 
-  Image, Globe, Pen, Telescope, Lightbulb 
+  Image, Globe, Pen, Telescope, Lightbulb, Paperclip 
 } from 'lucide-solid'
 
 interface ResourceAttachment {
@@ -11,11 +11,21 @@ interface ResourceAttachment {
   type: 'folder' | 'ssh'
 }
 
+interface AttachedFile {
+  id: string
+  name: string
+  uploading?: boolean
+}
+
 interface ComposerProps {
   onSend: (message: string) => void
   onStop?: () => void
   disabled?: boolean
+  model?: string
   attachedResources?: ResourceAttachment[]
+  attachedFiles?: AttachedFile[]
+  onAttachFiles?: (files: File[]) => void
+  onRemoveFile?: (index: number) => void
 }
 
 const toolsList = [
@@ -31,6 +41,7 @@ export function Composer(props: ComposerProps) {
   const [selectedTool, setSelectedTool] = createSignal<string | null>(null)
   const [toolsOpen, setToolsOpen] = createSignal(false)
   let textareaRef: HTMLTextAreaElement | undefined
+  let fileInputRef: HTMLInputElement | undefined
 
   function handleSubmit() {
     const msg = input().trim()
@@ -74,7 +85,7 @@ export function Composer(props: ComposerProps) {
         class="custom-scrollbar w-full resize-none border-0 bg-transparent px-3 py-3 text-foreground placeholder:text-muted-foreground focus:ring-0 focus-visible:outline-none min-h-12"
       />
 
-      <Show when={props.attachedResources?.length}>
+      <Show when={props.attachedResources?.length || props.attachedFiles?.length}>
         <div class="flex flex-wrap gap-1.5 px-3 pb-1">
           <For each={props.attachedResources}>
             {(r) => (
@@ -83,10 +94,44 @@ export function Composer(props: ComposerProps) {
               </span>
             )}
           </For>
+          <For each={props.attachedFiles}>
+            {(f, i) => (
+              <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400">
+                🖼️ {f.name}
+                <button type="button" onClick={() => props.onRemoveFile?.(i())} class="hover:opacity-70">
+                  <X class="h-2.5 w-2.5" />
+                </button>
+              </span>
+            )}
+          </For>
         </div>
       </Show>
 
       <div class="flex items-center gap-1 px-1 pb-1">
+        <input
+          type="file"
+          ref={fileInputRef!}
+          accept="image/*"
+          multiple
+          class="hidden"
+          onChange={(e) => {
+            const files = e.currentTarget.files
+            if (files && files.length > 0) {
+              props.onAttachFiles?.(Array.from(files))
+              e.currentTarget.value = ''
+            }
+          }}
+        />
+        <Show when={props.model === 'gemini'}>
+          <Tooltip>
+            <TooltipTrigger as="button" type="button" onClick={() => fileInputRef?.click()} class="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent focus-visible:outline-none">
+              <Paperclip class="h-4 w-4" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p class="text-xs">Attach image</p>
+            </TooltipContent>
+          </Tooltip>
+        </Show>
         <div class="relative">
           <Tooltip>
             <TooltipTrigger as="button" type="button" onClick={() => setToolsOpen(!toolsOpen())} class="flex h-8 items-center gap-1.5 rounded-full px-2 text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline-none">

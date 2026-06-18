@@ -1,50 +1,27 @@
-import { createResource } from 'solid-js'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { api } from '../../lib/api-client'
-
-interface ModelOption {
-  id: string
-  name?: string
-}
-
 interface ModelSelectorProps {
   value: string
   onChange: (model: string) => void
+  disabled?: boolean
 }
 
+const MODELS = [
+  { id: 'opencode', name: 'OpenCode' },
+  { id: 'gemini', name: 'Gemini (Playwright)' },
+]
+
 export function ModelSelector(props: ModelSelectorProps) {
-  const [models] = createResource(() => api.listModels())
-
-  const options = () => {
-    const m = models()
-    if (m?.models?.length) return m.models as ModelOption[]
-    return [{ id: 'default', name: 'Default' }]
-  }
-
-  const selectedOption = () => options().find((o) => o.id === props.value)
-
   return (
-    <Select<ModelOption>
-      value={selectedOption()}
-      onChange={(opt) => {
-        if (opt) props.onChange(opt.id)
-      }}
-      options={options()}
-      optionValue={(opt) => opt.id}
-      optionTextValue={(opt) => opt.name || opt.id}
-      placeholder="Select model"
-      itemComponent={(itemProps) => (
-        <SelectItem item={itemProps.item}>
-          {itemProps.item.rawValue.name || itemProps.item.rawValue.id}
-        </SelectItem>
-      )}
+    <select
+      value={props.value}
+      onChange={(e) => props.onChange(e.target.value)}
+      disabled={props.disabled}
+      class="flex h-8 w-44 items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <SelectTrigger class="w-44 h-8 text-xs">
-        <SelectValue<ModelOption>>
-          {(state) => state.selectedOption()?.name || state.selectedOption()?.id || 'Select model'}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent />
-    </Select>
+      {MODELS.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.name}
+        </option>
+      ))}
+    </select>
   )
 }

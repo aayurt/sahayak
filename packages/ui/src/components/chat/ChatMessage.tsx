@@ -1,24 +1,64 @@
-import { Show } from 'solid-js'
+import { Show, For, createEffect } from 'solid-js'
 import { marked } from 'marked'
+import { markedHighlight } from 'marked-highlight'
 import DOMPurify from 'dompurify'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
 import { Avatar } from '../ui/avatar'
 import { Badge } from '../ui/badge'
+
+marked.use(markedHighlight({
+  highlight(code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value
+    }
+    return hljs.highlightAuto(code).value
+  },
+}))
+
+interface ChatAttachment {
+  id: string
+  name: string
+  mimeType?: string
+}
 
 interface ChatMessageProps {
   role: string
   content: string
   model?: string
   onSaveToVault?: () => void
+  sessionId?: string
+  attachments?: ChatAttachment[]
 }
 
 export function ChatMessage(props: ChatMessageProps) {
   const isUser = props.role === 'user'
   const isAssistant = props.role === 'assistant'
+  let contentRef: HTMLDivElement | undefined
 
   const html = () => {
     const raw = marked.parse(props.content, { async: false }) as string
     return DOMPurify.sanitize(raw)
   }
+
+  createEffect(() => {
+    if (!contentRef) return
+    html()
+    contentRef.querySelectorAll('pre').forEach((pre) => {
+      if (pre.querySelector('.copy-btn')) return
+      const btn = document.createElement('button')
+      btn.className = 'copy-btn'
+      btn.textContent = 'Copy'
+      btn.onclick = async () => {
+        const code = pre.querySelector('code')?.textContent || pre.textContent || ''
+        await navigator.clipboard.writeText(code)
+        btn.textContent = 'Copied!'
+        setTimeout(() => { btn.textContent = 'Copy' }, 2000)
+      }
+      pre.style.position = 'relative'
+      pre.appendChild(btn)
+    })
+  })
 
   return (
     <div
@@ -52,9 +92,41 @@ export function ChatMessage(props: ChatMessageProps) {
         </div>
 
         <div
-          class="max-w-none text-sm leading-relaxed text-foreground [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_code]:text-sm [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold"
+          ref={contentRef}
+          class="max-w-none text-sm leading-relaxed text-foreground
+            [&_strong]:font-semibold [&_strong]:text-foreground
+            [&_em]:italic
+            [&_code]:text-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_code]:font-mono
+            [&_pre]:relative [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:pt-8 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:text-xs [&_pre]:font-mono [&_pre]:leading-relaxed
+            [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-xs [&_pre_code]:font-mono
+            [&_.copy-btn]:absolute [&_.copy-btn]:top-1.5 [&_.copy-btn]:right-1.5 [&_.copy-btn]:text-[10px] [&_.copy-btn]:px-2 [&_.copy-btn]:py-0.5 [&_.copy-btn]:rounded [&_.copy-btn]:border [&_.copy-btn]:border-border [&_.copy-btn]:bg-background [&_.copy-btn]:text-muted-foreground [&_.copy-btn]:cursor-pointer [&_.copy-btn]:hover:bg-muted [&_.copy-btn]:transition-colors
+            [&_a]:text-primary [&_a]:underline
+            [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground
+            [&_ul]:list-disc [&_ul]:pl-5
+            [&_ol]:list-decimal [&_ol]:pl-5
+            [&_h1]:text-lg [&_h1]:font-semibold
+            [&_h2]:text-base [&_h2]:font-semibold
+            [&_h3]:text-sm [&_h3]:font-semibold
+            [&_table]:w-full [&_table]:border-collapse [&_table]:my-2
+            [&_th]:bg-muted [&_th]:p-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:border [&_th]:border-border
+            [&_td]:p-2 [&_td]:text-xs [&_td]:border [&_td]:border-border
+            [&_tr:nth-child(even)_td]:bg-muted/50
+            [&_hr]:my-3 [&_hr]:border-border"
           innerHTML={html()}
         />
+        <Show when={isUser && props.attachments?.length && props.sessionId}>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <For each={props.attachments}>
+              {(att) => (
+                <img
+                  src={`/api/chat/sessions/${props.sessionId}/attachments/${att.id}/data`}
+                  alt={att.name}
+                  class="max-h-48 rounded-lg border object-contain bg-muted"
+                />
+              )}
+            </For>
+          </div>
+        </Show>
       </div>
     </div>
   )

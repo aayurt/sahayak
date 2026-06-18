@@ -10,13 +10,14 @@ export function modelsRouter() {
 
   router.get('/', async (_req, res) => {
     const opencodeModel = { id: 'opencode', name: 'OpenCode', backend: 'opencode', context_size: 128000 }
+    const geminiModel = { id: 'gemini', name: 'Gemini (Playwright)', backend: 'gemini', context_size: 1000000 }
     const endpoint = process.env.SAHAYAK_AI_ENDPOINT || 'http://localhost:8080'
     try {
       const client = createLocalAIClient(endpoint)
       const models = await client.listModels()
-      res.json({ models: [opencodeModel, ...models] })
+      res.json({ models: [opencodeModel, geminiModel, ...models] })
     } catch (err) {
-      res.json({ models: [opencodeModel], error: (err as Error).message })
+      res.json({ models: [opencodeModel, geminiModel], error: (err as Error).message })
     }
   })
 

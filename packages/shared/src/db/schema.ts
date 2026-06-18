@@ -140,6 +140,15 @@ export const resources = sqliteTable('resources', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
 
+export const attachments = sqliteTable('attachments', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id),
+  filename: text('filename').notNull(),
+  mimeType: text('mime_type').notNull(),
+  size: integer('size').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
 export const sidecars = sqliteTable('sidecars', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),

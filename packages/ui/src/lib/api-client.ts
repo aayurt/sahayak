@@ -19,11 +19,15 @@ export const api = {
   // Sessions
   listSessions: () => request<Array<{ id: string; name: string; model: string; updatedAt: string }>>('/chat/sessions'),
   getSession: (id: string) => request<{ session: any; messages: any[] }>(`/chat/sessions/${id}`),
-  createSession: () => request<{ id: string }>('/chat/sessions', { method: 'POST' }),
-  updateSession: (id: string, name: string) =>
+  createSession: (model?: string) =>
+    request<{ id: string }>('/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    }),
+  updateSession: (id: string, name?: string, model?: string) =>
     request<{ ok: boolean }>(`/chat/sessions/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, model }),
     }),
   deleteSession: (id: string) => request(`/chat/sessions/${id}`, { method: 'DELETE' }),
   sendMessage: (sessionId: string, message: string, model: string, systemPrompt?: string) =>
@@ -161,6 +165,24 @@ export const api = {
       body: JSON.stringify({ type, name }),
     }),
   listWhisperModels: () => request<{ modelsDir: string; installed: string[]; available: string[] }>('/models/download/whisper'),
+
+  // Attachments
+  uploadAttachments: async (sessionId: string, files: File[]) => {
+    const form = new FormData()
+    for (const f of files) form.append('files', f)
+    const res = await fetch(`${BASE}/chat/sessions/${sessionId}/attachments`, {
+      method: 'POST',
+      body: form,
+    })
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+    return res.json() as Promise<{ attachments: Array<{ id: string; filename: string; mimeType: string; size: number; url: string }> }>
+  },
+  listAttachments: (sessionId: string) =>
+    request<Array<{ id: string; sessionId: string; filename: string; mimeType: string; size: number; createdAt: string }>>(`/chat/sessions/${sessionId}/attachments`),
+  deleteAttachment: (sessionId: string, attachmentId: string) =>
+    request<{ ok: boolean }>(`/chat/sessions/${sessionId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+  getAttachmentDataUrl: (sessionId: string, attachmentId: string) =>
+    `${BASE}/chat/sessions/${sessionId}/attachments/${attachmentId}/data`,
 
   // OpenCode
   restoreOpencodeSession: (sessionId: string) =>

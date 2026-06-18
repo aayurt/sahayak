@@ -41,6 +41,17 @@
   --radius-xl: 1rem;
 }
 
+:root {
+  --text-muted: var(--color-muted-foreground);
+  --text-secondary: var(--color-muted-foreground);
+  --bg-secondary: var(--color-muted);
+  --bg-primary: var(--color-background);
+  --success: #16a34a;
+  --danger: #ef4444;
+  --border: var(--color-border);
+  --accent: var(--color-accent-foreground);
+}
+
 .dark {
   --color-background: #09090b;
   --color-foreground: #fafafa;
@@ -84,15 +95,6 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Legacy CSS variable aliases (used in Dashboard/Agent/Knowledge pages) */
-  --text-muted: var(--color-muted-foreground);
-  --text-secondary: var(--color-muted-foreground);
-  --bg-secondary: var(--color-muted);
-  --bg-primary: var(--color-background);
-  --success: #16a34a;
-  --danger: #ef4444;
-  --border: var(--color-border);
-  --accent: var(--color-accent-foreground);
 }
 
 @layer utilities {

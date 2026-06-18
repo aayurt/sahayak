@@ -14,10 +14,12 @@ data/
 *.db
 *.db-shm
 *.db-wal
+:memory:*
 
 # Temp
 opencodeTmp/
 .sahayak/
+**/gemini_auth_states/
 
 # OS
 .vscode/

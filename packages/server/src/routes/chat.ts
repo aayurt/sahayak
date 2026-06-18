@@ -3,8 +3,8 @@ import { v4 as uuid } from 'uuid'
 import { initDb, schema } from '@sahayak/shared/db'
 import { createLocalAIClient } from '../localai'
 import { eq, desc } from 'drizzle-orm'
-import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { join, resolve } from 'path'
+import { existsSync, readFileSync, unlinkSync, mkdirSync, writeFileSync } from 'fs'
 import type { WorkspaceManager } from '../workspaces/manager'
 import { ensureOpencodeSession, streamOpencodeMessage, clearOpenCodeMapping } from '../opencode-chat'
 import type { PermissionCallback } from '../opencode-chat'
@@ -70,13 +70,14 @@ function loadGraphifyContext(resources: any[]): string {
 export function chatRouter(workspaceManager?: WorkspaceManager) {
   const router = Router()
 
-  router.post('/sessions', async (_req, res) => {
+  router.post('/sessions', async (req, res) => {
+    const { model: reqModel } = req.body || {}
     const db = initDb()
     const id = uuid()
     await db.insert(schema.sessions).values({
       id,
       name: 'New Chat',
-      model: 'default',
+      model: reqModel || 'opencode',
       systemPrompt: '',
       tokenUsage: { prompt: 0, completion: 0, total: 0 },
       createdAt: new Date(),
@@ -228,7 +229,7 @@ Use "description" for optional longer explanations.`
     const graphifyCtx = (rawResources && Array.isArray(rawResources))
       ? loadGraphifyContext(rawResources)
       : ''
-    const model = reqModel || 'default'
+    const model = reqModel || 'opencode'
     const db = initDb()
     const sessionId = req.params.id
 
@@ -416,6 +417,7 @@ Use "description" for optional longer explanations.`
         createdAt: new Date(),
       }
       await db.insert(schema.messages).values(assistantMsg)
+      await db.update(schema.sessions).set({ model, updatedAt: new Date() }).where(eq(schema.sessions.id, sessionId))
     } catch (saveErr) {
       console.error('[chat] failed to save assistant message:', saveErr)
     }
@@ -437,20 +439,29 @@ Use "description" for optional longer explanations.`
   })
 
   router.put('/sessions/:id', async (req, res) => {
-    const { name } = req.body
-    if (!name || typeof name !== 'string') {
-      return res.status(400).json({ error: 'name is required' })
-    }
+    const { name, model } = req.body
     const db = initDb()
+    const updates: Record<string, any> = { updatedAt: new Date() }
+    if (name && typeof name === 'string') updates.name = name
+    if (model && typeof model === 'string') updates.model = model
+    if (Object.keys(updates).length <= 1) {
+      return res.status(400).json({ error: 'name or model is required' })
+    }
     await db
       .update(schema.sessions)
-      .set({ name, updatedAt: new Date() })
+      .set(updates)
       .where(eq(schema.sessions.id, req.params.id))
     res.json({ ok: true })
   })
 
   router.delete('/sessions/:id', async (req, res) => {
     const db = initDb()
+    const uploadsDir = resolve('./data/uploads')
+    const attachs = db.select().from(schema.attachments).where(eq(schema.attachments.sessionId, req.params.id)).all()
+    for (const a of attachs) {
+      try { unlinkSync(join(uploadsDir, a.id)) } catch { /* ignore */ }
+    }
+    await db.delete(schema.attachments).where(eq(schema.attachments.sessionId, req.params.id))
     await db.delete(schema.messages).where(eq(schema.messages.sessionId, req.params.id))
     await db.delete(schema.sessions).where(eq(schema.sessions.id, req.params.id))
     clearOpenCodeMapping(req.params.id)
@@ -473,6 +484,85 @@ Use "description" for optional longer explanations.`
     clearTimeout(pending.timeout)
     pendingPermissions.delete(req.params.id)
     pending.resolve(response as 'once' | 'always' | 'reject')
+    res.json({ ok: true })
+  })
+
+  // ── Attachments ──────────────────────────────────────────
+  const UPLOADS_DIR = resolve('./data/uploads')
+
+  router.post('/sessions/:id/attachments', async (req, res) => {
+    const sessionId = req.params.id
+    const db = initDb()
+    const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' })
+    }
+
+    if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true })
+
+    const uploaded = Array.isArray(req.files.files) ? req.files.files : [req.files.files]
+    const results: Array<{ id: string; filename: string; mimeType: string; size: number; url: string }> = []
+
+    for (const file of uploaded as any[]) {
+      const id = uuid()
+      const filepath = join(UPLOADS_DIR, id)
+      writeFileSync(filepath, file.data)
+      await db.insert(schema.attachments).values({
+        id,
+        sessionId,
+        filename: file.name,
+        mimeType: file.mimetype,
+        size: file.size,
+        createdAt: new Date(),
+      })
+      results.push({ id, filename: file.name, mimeType: file.mimetype, size: file.size, url: `/api/chat/sessions/${sessionId}/attachments/${id}/data` })
+    }
+
+    res.json({ attachments: results })
+  })
+
+  router.get('/sessions/:id/attachments', async (req, res) => {
+    const db = initDb()
+    const attachs = db
+      .select()
+      .from(schema.attachments)
+      .where(eq(schema.attachments.sessionId, req.params.id))
+      .orderBy(schema.attachments.createdAt)
+      .all()
+    res.json(attachs)
+  })
+
+  router.get('/sessions/:id/attachments/:attachmentId/data', async (req, res) => {
+    const db = initDb()
+    const att = db
+      .select()
+      .from(schema.attachments)
+      .where(eq(schema.attachments.id, req.params.attachmentId))
+      .get()
+    if (!att) return res.status(404).json({ error: 'Attachment not found' })
+
+    const filepath = join(UPLOADS_DIR, att.id)
+    if (!existsSync(filepath)) return res.status(404).json({ error: 'File not found' })
+
+    res.setHeader('Content-Type', att.mimeType)
+    res.setHeader('Content-Disposition', `inline; filename="${att.filename}"`)
+    res.sendFile(filepath)
+  })
+
+  router.delete('/sessions/:id/attachments/:attachmentId', async (req, res) => {
+    const db = initDb()
+    const att = db
+      .select()
+      .from(schema.attachments)
+      .where(eq(schema.attachments.id, req.params.attachmentId))
+      .get()
+    if (!att) return res.status(404).json({ error: 'Attachment not found' })
+
+    const filepath = join(UPLOADS_DIR, att.id)
+    try { unlinkSync(filepath) } catch { /* ignore */ }
+    await db.delete(schema.attachments).where(eq(schema.attachments.id, req.params.attachmentId))
     res.json({ ok: true })
   })
 

@@ -3,6 +3,14 @@ import { api } from '../lib/api-client'
 import type { PermissionRequest, PermissionReply } from '../types/permission'
 import { isPermissionAutoAcceptEnabled, togglePermissionAutoAccept } from './permission-auto-accept'
 
+export interface StoredAttachment {
+  id: string
+  name: string
+  mimeType?: string
+  size?: number
+  uploading?: boolean
+}
+
 export interface ResourceAttachment {
   id: string
   name: string
@@ -20,6 +28,7 @@ interface ChatMessage {
   model: string
   createdAt: string
   resources?: ResourceAttachment[]
+  attachments?: StoredAttachment[]
 }
 
 interface Session {
@@ -119,8 +128,8 @@ export async function loadSessions() {
   setState('sessions', data)
 }
 
-export async function createSession() {
-  const { id } = await api.createSession()
+export async function createSession(model?: string) {
+  const { id } = await api.createSession(model)
   await loadSessions()
   ensureSessionState(id)
   setState('currentSessionId', id)
@@ -144,13 +153,25 @@ export async function selectSession(id: string) {
     })
   }
 
-  setState('currentSessionId', id)
   ensureSessionState(id)
 
-  // Load messages from server
+  // Load session data FIRST so model is available before updating currentSessionId
   const data = await api.getSession(id)
   setState('sessionStates', id, 'messages', data.messages || [])
 
+  // Sync session model into sessions list before the effect fires
+  if (data.session) {
+    const idx = state.sessions.findIndex(s => s.id === id)
+    if (idx >= 0) {
+      setState('sessions', idx, {
+        model: data.session.model,
+        name: data.session.name,
+        updatedAt: data.session.updatedAt,
+      })
+    }
+  }
+
+  setState('currentSessionId', id)
   syncFlatFields(id)
 
   const auto = isPermissionAutoAcceptEnabled(id)
@@ -407,6 +428,172 @@ export function setAttachedResources(sessionId: string, resources: ResourceAttac
   }
   if (sessionId === state.currentSessionId) {
     syncFlatFields(sessionId)
+  }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024
+
+async function compressBase64(base64: string, maxSizeBytes = MAX_IMAGE_SIZE): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0)
+
+      function tryQuality(q: number) {
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('Image compression failed')); return }
+          if (blob.size <= maxSizeBytes || q <= 0.1) {
+            const reader = new FileReader()
+            reader.onload = () => resolve((reader.result as string).split(',')[1])
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          } else {
+            tryQuality(q - 0.1)
+          }
+        }, 'image/jpeg', q)
+      }
+      tryQuality(0.8)
+    }
+    img.onerror = reject
+    img.src = `data:image/png;base64,${base64}`
+  })
+}
+
+async function fetchAttachmentBase64(sid: string, att: StoredAttachment): Promise<string> {
+  const url = `/api/chat/sessions/${sid}/attachments/${att.id}/data`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to fetch attachment ${att.name}`)
+  const buf = await res.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  const base64 = btoa(binary)
+  const size = att.size ?? buf.byteLength
+  if (size > MAX_IMAGE_SIZE) {
+    return compressBase64(base64)
+  }
+  return base64
+}
+
+export async function sendGeminiMessage(message: string, attachments?: StoredAttachment[]) {
+  const sid = state.currentSessionId
+  if (!sid) return
+
+  ensureSessionState(sid)
+
+  if (!sessionReaders.has(sid)) {
+    sessionReaders.set(sid, { reader: null, generation: 0 })
+  }
+  const sessionReader = sessionReaders.get(sid)!
+  sessionReader.generation++
+  const gen = sessionReader.generation
+
+  setState('sessionStates', sid, {
+    streaming: true,
+    streamingContent: '',
+    permissionQueue: [],
+    activePermissionId: null,
+  })
+  syncFlatFields(sid)
+
+  const validAttachments = attachments?.filter(a => !a.uploading)
+  const userMsg: ChatMessage = {
+    id: crypto.randomUUID(),
+    role: 'user',
+    content: message,
+    model: 'gemini',
+    createdAt: new Date().toISOString(),
+    attachments: validAttachments?.length ? validAttachments.map(a => ({ id: a.id, name: a.name, mimeType: a.mimeType })) : undefined,
+  }
+  setState('sessionStates', sid, 'messages', (m) => [...m, userMsg])
+  syncFlatFields(sid)
+
+  try {
+    let content: string
+    if (attachments && attachments.length > 0) {
+      const images = await Promise.all(attachments.filter(a => !a.uploading).map(a => fetchAttachmentBase64(sid, a)))
+      if (images.length === 0) throw new Error('No valid attachments')
+      const res = await fetch('/api/gemini/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images, prompt: message, sessionId: sid }),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error((errBody as any).error || `Gemini image request failed (${res.status})`)
+      }
+      const data = await res.json()
+      content = data.content || ''
+    } else {
+      const res = await fetch('/api/gemini/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: message, sessionId: sid }),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error((errBody as any).error || `Gemini chat request failed (${res.status})`)
+      }
+      const data = await res.json()
+      content = data.content || ''
+    }
+
+    if (gen !== sessionReaders.get(sid)?.generation) return
+
+    if (content) {
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content,
+        model: 'gemini',
+        createdAt: new Date().toISOString(),
+      }
+      setState('sessionStates', sid, 'messages', (m) => [...m, assistantMsg])
+      try {
+        window.dispatchEvent(new CustomEvent('sahayak:assistant-response', { detail: { content: content.trim() } }))
+      } catch { /* ignore */ }
+    }
+  } catch (err) {
+    console.error('[chat] gemini error:', err)
+    if (gen !== sessionReaders.get(sid)?.generation) return
+    const errorMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: `Error: ${(err as Error).message}`,
+      model: 'gemini',
+      createdAt: new Date().toISOString(),
+    }
+    setState('sessionStates', sid, 'messages', (m) => [...m, errorMsg])
+  } finally {
+    if (gen === sessionReaders.get(sid)?.generation) {
+      setState('sessionStates', sid, {
+        streaming: false,
+        streamingContent: '',
+      })
+      syncFlatFields(sid)
+    }
+  }
+
+  const currentSession = state.sessions.find(s => s.id === sid)
+  if (currentSession && currentSession.name === 'New Chat') {
+    const title = message.length > 60 ? message.slice(0, 57) + '\u2026' : message
+    renameSession(sid, title)
   }
 }
 

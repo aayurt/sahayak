@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, Show, onMount, onCleanup, createResource, Switch, Match } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
-import { useChatStore, loadSessions, createSession, selectSession, renameSession, sendMessage as storeSendMessage, sendPermissionResponse, toggleAutoAccept, syncAutoAccept, abortStream, setAttachedResources as storeSetAttachedResources } from '../stores/chat'
-import type { ResourceAttachment } from '../stores/chat'
+import { useChatStore, loadSessions, createSession, selectSession, renameSession, sendMessage as storeSendMessage, sendGeminiMessage, sendPermissionResponse, toggleAutoAccept, syncAutoAccept, abortStream, setAttachedResources as storeSetAttachedResources } from '../stores/chat'
+import type { ResourceAttachment, StoredAttachment } from '../stores/chat'
 import { api } from '../lib/api-client'
 import { ChatMessage } from '../components/chat/ChatMessage'
 import { Composer } from '../components/chat/Composer'
@@ -21,6 +21,8 @@ export function ChatPage() {
   const navigate = useNavigate()
   const { state, setState } = useChatStore()
   const [model, setModel] = createSignal('opencode')
+  const modelLocked = () => state.messages.length > 0
+  const [geminiFiles, setGeminiFiles] = createSignal<StoredAttachment[]>([])
   const [_systemPrompt, _setSystemPrompt] = createSignal('')
   const [sidebarOpen, setSidebarOpen] = createSignal(true)
   const [renamingSessionId, setRenamingSessionId] = createSignal<string | null>(null)
@@ -49,12 +51,21 @@ export function ChatPage() {
 
   function playFinishTone() {
     try {
-      const utterance = new SpeechSynthesisUtterance('Response complete')
-      utterance.rate = 0.85
-      utterance.pitch = 1.1
-      utterance.volume = 0.5
-      speechSynthesis.speak(utterance)
-    } catch { /* tts not available */ }
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (!AC) return
+      const ctx = new AC()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(660, ctx.currentTime)
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08)
+      gain.gain.setValueAtTime(0.15, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.2)
+    } catch { /* audio not available */ }
   }
 
   async function saveToVault(content: string) {
@@ -191,6 +202,25 @@ export function ChatPage() {
     } catch { /* ignore */ }
   })
 
+  createEffect(() => {
+    const sid = state.currentSessionId
+    if (sid && state.sessions.length > 0) {
+      const session = state.sessions.find(s => s.id === sid)
+      if (session?.model && (session.model === 'opencode' || session.model === 'gemini')) {
+        setModel(session.model as 'opencode' | 'gemini')
+      }
+    }
+  })
+
+  function handleModelChange(newModel: string) {
+    setModel(newModel as 'opencode' | 'gemini')
+    const sid = state.currentSessionId
+    if (sid) {
+      api.updateSession(sid, undefined, newModel).catch(() => {})
+      setState('sessions', (s) => s.id === sid, 'model', newModel)
+    }
+  }
+
   function handleSend(msg: string) {
     const resources = attachedResources()
     let enriched = msg
@@ -201,12 +231,18 @@ export function ChatPage() {
       }).join('\n')
       enriched = `${ctx}\n\n${msg}`
     }
-    storeSendMessage(enriched, model(), _systemPrompt(), resources.length > 0 ? resources : undefined)
+    if (model() === 'gemini') {
+      const files = geminiFiles()
+      sendGeminiMessage(enriched, files.length > 0 ? files : undefined)
+      setGeminiFiles([])
+    } else {
+      storeSendMessage(enriched, model(), _systemPrompt(), resources.length > 0 ? resources : undefined)
+    }
   }
 
   async function handleNewSession() {
     setSessionResources([])
-    const id = await createSession()
+    const id = await createSession(model())
     navigate(`/chat/${id}`)
   }
 
@@ -501,7 +537,7 @@ export function ChatPage() {
                 </Match>
               </Switch>
             </div>
-            <ModelSelector value={model()} onChange={setModel} />
+            <ModelSelector value={model()} onChange={handleModelChange} disabled={modelLocked()} />
           </div>
         </div>
 
@@ -559,6 +595,8 @@ export function ChatPage() {
                           role={msg.role}
                           content={msg.content}
                           model={msg.model}
+                          sessionId={state.currentSessionId ?? undefined}
+                          attachments={(msg as any).attachments}
                           onSaveToVault={msg.role === 'assistant' ? () => saveToVault(msg.content) : undefined}
                         />
                       </div>
@@ -652,7 +690,40 @@ export function ChatPage() {
             {/* Composer */}
             <div class="border-t border-border/30 bg-gradient-to-t from-background via-background/95 to-transparent pt-3 pb-1 px-4 relative z-10">
               <div class="max-w-3xl mx-auto composer-glow rounded-xl">
-                <Composer onSend={handleSend} onStop={handleStopStream} disabled={state.streaming} attachedResources={attachedResources()} />
+                <Composer
+                  onSend={handleSend}
+                  onStop={handleStopStream}
+                  disabled={state.streaming}
+                  model={model()}
+                  attachedResources={attachedResources()}
+                  attachedFiles={geminiFiles().map(f => ({ id: f.id, name: f.name, uploading: f.uploading }))}
+                  onAttachFiles={async (files) => {
+                    const sid = state.currentSessionId
+                    if (!sid) return
+                    const uploading = files.map(f => ({ id: crypto.randomUUID(), name: f.name, uploading: true }))
+                    setGeminiFiles(prev => [...prev, ...uploading])
+                    try {
+                      const { attachments } = await api.uploadAttachments(sid, files)
+                      setGeminiFiles(prev => {
+                        const withoutUploading = prev.filter(a => !a.uploading)
+                        return [...withoutUploading, ...attachments.map(a => ({ id: a.id, name: a.filename, mimeType: a.mimeType, size: a.size }))]
+                      })
+                    } catch (err) {
+                      setGeminiFiles(prev => prev.filter(a => !a.uploading))
+                      console.error('[upload]', err)
+                    }
+                  }}
+                  onRemoveFile={async (i) => {
+                    const file = geminiFiles()[i]
+                    if (file) {
+                      const sid = state.currentSessionId
+                      if (sid && file.id && !file.uploading) {
+                        api.deleteAttachment(sid, file.id).catch(() => {})
+                      }
+                    }
+                    setGeminiFiles(prev => prev.filter((_, idx) => idx !== i))
+                  }}
+                />
               </div>
               <p class="text-[10px] text-center text-muted-foreground/40 mt-1 select-none">
                 Sahayak may produce inaccurate information. Verify important facts.

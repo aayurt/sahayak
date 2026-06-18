@@ -92,6 +92,11 @@ export function syncSchema() {
       temperature REAL DEFAULT 0.7, max_tokens INTEGER DEFAULT 2048,
       enabled INTEGER DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+      filename TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS sidecars (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, port INTEGER NOT NULL,
       base_path TEXT NOT NULL, prefix_mode TEXT DEFAULT 'preserve', enabled INTEGER DEFAULT 1
