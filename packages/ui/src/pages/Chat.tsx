@@ -28,10 +28,11 @@ import { Button } from '../components/ui/button'
 import { ResourceModal } from '../components/chat/ResourceModal'
 import { GitTree } from '../components/resources/GitTree'
 import { AgentPlan } from '../components/agent/agent-plan'
+import { AgentPlanning, type PlanStep, type PlanStepStatus } from '../components/ui/agent-planning'
 import { QuestionTool } from '../components/agent/question-tool'
 import { PermissionNotificationBanner } from '../components/permission/permission-notification-banner'
 import { PermissionApprovalModal } from '../components/permission/permission-approval-modal'
-import { Plus, MessageSquare, PanelLeft, Trash2, Edit3, RefreshCw, Sparkles, FolderKanban, GitBranch, ChevronDown, X, ListChecks } from 'lucide-solid'
+import { Plus, MessageSquare, PanelLeft, Trash2, Edit3, RefreshCw, Sparkles, FolderKanban, GitBranch, ChevronDown, X, ListChecks, BrainCircuit } from 'lucide-solid'
 
 export function ChatPage() {
   const params = useParams<{ sessionId?: string }>()
@@ -61,6 +62,7 @@ export function ChatPage() {
   const [loadError, setLoadError] = createSignal('')
   const [planData, setPlanData] = createSignal<any[] | null>(null)
   const [planPanelOpen, setPlanPanelOpen] = createSignal(false)
+  const [planMode, setPlanMode] = createSignal(false)
   const [questionData, setQuestionData] = createSignal<any | null>(null)
   const [questionIndex, setQuestionIndex] = createSignal(1)
   const [permissionModalOpen, setPermissionModalOpen] = createSignal(false)
@@ -203,6 +205,7 @@ export function ChatPage() {
       if (parsed.tasks && Array.isArray(parsed.tasks)) {
         setPlanData(parsed.tasks)
         setPlanPanelOpen(true)
+        setPlanMode(true)
       }
     } catch { /* ignore */ }
   })
@@ -349,6 +352,49 @@ export function ChatPage() {
     if (state.currentSessionId) {
       abortStream(state.currentSessionId)
     }
+  }
+
+  function planDataToSteps(data: any[]): PlanStep[] {
+    return data.map((task, idx) => {
+      const statusMap: Record<string, PlanStepStatus> = {
+        completed: 'success',
+        'in-progress': 'active',
+        'need-help': 'error',
+        failed: 'error',
+        pending: 'pending',
+      }
+      return {
+        id: task.id,
+        title: task.title,
+        status: statusMap[task.status] || 'pending',
+        duration: idx === 0 ? 'ongoing' : undefined,
+        defaultExpanded: task.status === 'in-progress',
+        content: (
+          <div class="space-y-2">
+            <p class="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
+            {task.subtasks?.length > 0 && (
+              <div class="space-y-1">
+                {task.subtasks.map((sub: any) => {
+                  const subStatusMap: Record<string, string> = {
+                    completed: 'text-emerald-600 dark:text-emerald-400',
+                    'in-progress': 'text-blue-600 dark:text-blue-400',
+                    'need-help': 'text-amber-600 dark:text-amber-400',
+                    failed: 'text-rose-600 dark:text-rose-400',
+                    pending: 'text-muted-foreground/50',
+                  }
+                  return (
+                    <div class="flex items-start gap-2 text-xs">
+                      <span class="mt-0.5 shrink-0">{sub.status === 'completed' ? '✓' : sub.status === 'in-progress' ? '◌' : sub.status === 'need-help' || sub.status === 'failed' ? '!' : '○'}</span>
+                      <span class={subStatusMap[sub.status] || 'text-muted-foreground'}>{sub.title}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ),
+      }
+    })
   }
 
   return (<>
@@ -520,13 +566,16 @@ export function ChatPage() {
             <Button variant="ghost" size="icon" class="h-7 w-7" onClick={showGitTree} disabled={gitTreeLoading() || attachedResources().filter((r) => r.type === 'folder').length === 0} title="Git tree">
               <GitBranch class="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7 relative" onClick={() => setPlanPanelOpen(!planPanelOpen())} title="Plan">
+            <Button variant="ghost" size="icon" class="h-7 w-7 relative" onClick={() => setPlanPanelOpen(!planPanelOpen())} title="Plan tasks">
               <ListChecks class="h-4 w-4" />
               <Show when={planData() !== null}>
                 <span class="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold" style="background:var(--accent);color:var(--accent-foreground)">
                   {planData()?.length || 0}
                 </span>
               </Show>
+            </Button>
+            <Button variant="ghost" size="icon" class={`h-7 w-7 relative ${planMode() ? 'text-cyan-500' : ''}`} onClick={() => setPlanMode(!planMode())} title="Plan mode">
+              <BrainCircuit class="h-4 w-4" />
             </Button>
 
             {/* Backend status */}
@@ -597,6 +646,9 @@ export function ChatPage() {
                 }
               >
                 <div class="max-w-3xl mx-auto py-4 px-4 space-y-2">
+                  <Show when={planMode() && planData() !== null}>
+                    <AgentPlanning steps={planDataToSteps(planData()!)} />
+                  </Show>
                   <For each={state.messages}>
                     {(msg, i) => (
                       <div

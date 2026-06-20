@@ -1,5 +1,5 @@
 import { createResource, createSignal, For, Show, onMount, onCleanup } from 'solid-js'
-import { useSettings, loadPermissionMode, savePermissionMode, toggleJarvis } from '../stores/settings'
+import { useSettings, loadPermissionMode, savePermissionMode, toggleJarvis, toggleSidebarTerminal } from '../stores/settings'
 import { api } from '../lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Separator } from '../components/ui/separator'
 import {
-  Bot, Key, Mic, Save,
+  Bot, Key, Mic, Save, PanelLeft,
   Download, Activity, CheckCircle,
   RefreshCw, Loader2, Terminal, Play, Square, Globe, Table, LogOut
 } from 'lucide-solid'
@@ -66,14 +66,18 @@ export function SettingsPage() {
   }
 
   return (
-    <div class="p-6 overflow-y-auto h-full max-w-2xl mx-auto space-y-6">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-        <Button size="sm" onClick={() => {/* TODO: persist settings */}}>
-          <Save class="h-4 w-4 mr-1" />
-          Save
-        </Button>
+    <div class="flex flex-col min-h-0 flex-1">
+      <div class="sticky top-0 z-10 bg-background/80 backdrop-blur-sm px-6 py-4 border-b border-border/20">
+        <div class="flex items-center justify-between max-w-2xl mx-auto">
+          <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
+          <Button size="sm" onClick={() => {/* TODO: persist settings */}}>
+            <Save class="h-4 w-4 mr-1" />
+            Save
+          </Button>
+        </div>
       </div>
+      <div class="flex-1 overflow-y-auto">
+        <div class="max-w-2xl mx-auto space-y-6 p-6">
 
       {/* Backend Health */}
       <Card>
@@ -402,6 +406,33 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Sidebar */}
+      <Card>
+        <CardHeader class="pb-3">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <PanelLeft class="h-4 w-4 text-muted-foreground" />
+            Sidebar
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <label class="text-sm font-medium" for="terminal-toggle">
+                Show Terminal in sidebar
+              </label>
+              <p class="text-xs text-muted-foreground">
+                Hide the Terminal nav item from the sidebar navigation
+              </p>
+            </div>
+            <Switch
+              id="terminal-toggle"
+              checked={settings.sidebarTerminalVisible}
+              onChange={() => toggleSidebarTerminal()}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Gemini Auth */}
       <Card>
         <CardHeader class="pb-3">
@@ -514,6 +545,8 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   )
 }

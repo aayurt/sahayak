@@ -10,6 +10,7 @@ interface SettingsState {
   permissionMode: 'allow' | 'prompt'
   googleClientId: string
   googleClientSecret: string
+  sidebarTerminalVisible: boolean
 }
 
 const [settings, setSettings] = createStore<SettingsState>({
@@ -22,10 +23,12 @@ const [settings, setSettings] = createStore<SettingsState>({
   permissionMode: 'prompt',
   googleClientId: '',
   googleClientSecret: '',
+  sidebarTerminalVisible: true,
 })
 
 const THEME_KEY = 'sahayak:theme'
 const JARVIS_KEY = 'sahayak:jarvis-enabled'
+const TERMINAL_VISIBLE_KEY = 'sahayak:sidebar-terminal-visible'
 
 let themeInitialized = false
 
@@ -53,6 +56,10 @@ export function initTheme() {
     if (jarvisSaved === 'true' || jarvisSaved === 'false') {
       setSettings('jarvisEnabled', jarvisSaved === 'true')
     }
+    const terminalVisible = localStorage.getItem(TERMINAL_VISIBLE_KEY)
+    if (terminalVisible === 'true' || terminalVisible === 'false') {
+      setSettings('sidebarTerminalVisible', terminalVisible === 'true')
+    }
   } catch {}
   document.documentElement.className = theme === 'dark' ? 'dark' : ''
 }
@@ -61,6 +68,12 @@ export function toggleJarvis() {
   const next = !settings.jarvisEnabled
   setSettings('jarvisEnabled', next)
   try { localStorage.setItem(JARVIS_KEY, String(next)) } catch {}
+}
+
+export function toggleSidebarTerminal() {
+  const next = !settings.sidebarTerminalVisible
+  setSettings('sidebarTerminalVisible', next)
+  try { localStorage.setItem(TERMINAL_VISIBLE_KEY, String(next)) } catch {}
 }
 
 export function applyTheme(theme: 'light' | 'dark') {

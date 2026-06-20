@@ -29,7 +29,7 @@ function RootLayout(props: { children?: JSX.Element }) {
         <Sidebar />
         <div class="flex-1 flex flex-col min-w-0">
           <HUD />
-          <main class="flex-1 flex flex-col overflow-hidden pt-9">
+          <main class="flex-1 flex flex-col pt-9">
             {props.children}
           </main>
         </div>

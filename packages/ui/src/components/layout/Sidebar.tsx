@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from '@solidjs/router'
+import { useSettings } from '../../stores/settings'
 import {
   Sidebar as SidebarRoot,
   SidebarHeader,
@@ -40,6 +41,12 @@ const NAV: NavItem[] = [
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { settings } = useSettings()
+
+  const visibleNav = () => NAV.filter((item) => {
+    if (item.path === '/terminal') return settings.sidebarTerminalVisible
+    return true
+  })
 
   return (
     <SidebarRoot collapsible="icon">
@@ -52,7 +59,7 @@ export function Sidebar() {
           <SidebarGroupLabel class="group-data-[state=collapsed]/sidebar:hidden">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV.map((item) => {
+              {visibleNav().map((item) => {
                 const Icon = item.icon
                 const active = () => location.pathname === item.path
                 return (
