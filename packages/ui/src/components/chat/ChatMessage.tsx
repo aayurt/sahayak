@@ -74,7 +74,16 @@ export function ChatMessage(props: ChatMessageProps) {
             {isUser ? 'You' : isAssistant ? 'Assistant' : 'System'}
           </span>
           {props.model && (
-            <Badge variant="outline" class="text-[10px] px-1.5 py-0 h-4">
+            <Badge
+              variant="outline"
+              class={`text-[10px] px-1.5 py-0 h-4 ${
+                props.model === 'gemini'
+                  ? 'border-purple-500/30 text-purple-600 dark:text-purple-400 bg-purple-500/10'
+                  : props.model === 'opencode'
+                  ? 'border-cyan-500/30 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10'
+                  : ''
+              }`}
+            >
               {props.model}
             </Badge>
           )}

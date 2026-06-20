@@ -128,7 +128,12 @@ export function CommandPalette(props: { open: boolean; onClose: () => void }) {
                     onClick={() => cmd.action()}
                     onMouseEnter={() => setSelectedIndex(i())}
                   >
-                    <span class="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-muted text-muted-foreground min-w-[3rem]">
+                    <span class="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase min-w-[3rem]"
+                      classList={{
+                        'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400': cmd.category === 'nav',
+                        'bg-purple-500/10 text-purple-600 dark:text-purple-400': cmd.category === 'actions',
+                      }}
+                    >
                       {cmd.category}
                     </span>
                     <div class="flex-1 min-w-0">

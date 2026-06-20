@@ -24,7 +24,7 @@ import { ChatMessage } from '../components/chat/ChatMessage'
 import { Composer } from '../components/chat/Composer'
 import { ModelSelector } from '../components/chat/ModelSelector'
 import { Button } from '../components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
+
 import { ResourceModal } from '../components/chat/ResourceModal'
 import { GitTree } from '../components/resources/GitTree'
 import { AgentPlan } from '../components/agent/agent-plan'
@@ -319,19 +319,6 @@ export function ChatPage() {
     setRenamingSessionId(null)
   }
 
-  let renameInputEl: HTMLInputElement | undefined
-
-  function setRenameInputRef(el: HTMLInputElement) {
-    renameInputEl = el
-    el?.focus()
-  }
-
-  createEffect(() => {
-    if (renamingSessionId()) {
-      renameInputEl?.focus()
-    }
-  })
-
   function toggleResource(r: ResourceAttachment) {
     const current = attachedResources()
     if (current.some((a) => a.id === r.id)) {
@@ -352,15 +339,6 @@ export function ChatPage() {
       setGitTreeData({ name: folders[0].name, data: { isGitRepo: false, branches: [], branchCommits: {}, error: (e as Error).message } })
     }
     setGitTreeLoading(false)
-  }
-
-  function handleRenameDialogOpenChange(open: boolean) {
-    if (!open) cancelRename()
-  }
-
-  function handleRenameInputKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter') confirmRename()
-    else if (e.key === 'Escape') cancelRename()
   }
 
   function isSessionActive(id: string): boolean {
@@ -417,7 +395,20 @@ export function ChatPage() {
                     <Show when={!isSessionActive(s.id)}>
                       <MessageSquare class="h-3 w-3 shrink-0 opacity-60" />
                     </Show>
-                    <span class="truncate">{s.name}</span>
+                    <Show when={renamingSessionId() === s.id} fallback={<span class="truncate">{s.name}</span>}>
+                      <input
+                        class="flex h-6 w-full rounded border border-cyan-500/40 bg-background/80 px-1.5 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/30"
+                        value={renameValue()}
+                        onInput={(e) => setRenameValue(e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.stopPropagation(); confirmRename() }
+                          else if (e.key === 'Escape') { e.stopPropagation(); cancelRename() }
+                        }}
+                        onBlur={() => confirmRename()}
+                        onClick={(e) => e.stopPropagation()}
+                        ref={(el) => { if (renamingSessionId() === s.id) queueMicrotask(() => el?.focus()) }}
+                      />
+                    </Show>
                   </div>
                   <div class="flex items-center gap-0.5 shrink-0">
                     <button
@@ -838,24 +829,6 @@ export function ChatPage() {
       )}
     </Show>
 
-    <Dialog open={renamingSessionId() !== null} onOpenChange={handleRenameDialogOpenChange}>
-      <DialogContent class="sm:max-w-[400px]">
-        <DialogHeader>
-          <DialogTitle>Rename session</DialogTitle>
-        </DialogHeader>
-        <input
-          ref={setRenameInputRef}
-          class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          value={renameValue()}
-          onInput={(e) => setRenameValue(e.currentTarget.value)}
-          onKeyDown={handleRenameInputKeyDown}
-        />
-        <DialogFooter>
-          <Button variant="outline" onClick={cancelRename}>Cancel</Button>
-          <Button onClick={confirmRename}>Save</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
     </>
   )
 }
