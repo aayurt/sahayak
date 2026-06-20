@@ -1,5 +1,5 @@
 import { createResource, createSignal, For, Show, onMount, onCleanup } from 'solid-js'
-import { useSettings, loadPermissionMode, savePermissionMode } from '../stores/settings'
+import { useSettings, loadPermissionMode, savePermissionMode, toggleJarvis } from '../stores/settings'
 import { api } from '../lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -396,7 +396,7 @@ export function SettingsPage() {
             <Switch
               id="jarvis-toggle"
               checked={settings.jarvisEnabled}
-              onChange={(v) => setSettings('jarvisEnabled', v)}
+              onChange={() => toggleJarvis()}
             />
           </div>
         </CardContent>

@@ -20,6 +20,22 @@ const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
+const SIDEBAR_STORAGE_KEY = 'sahayak:sidebar-open'
+
+function loadSidebarState(): boolean {
+  try {
+    const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY)
+    if (saved === 'true') return true
+    if (saved === 'false') return false
+  } catch {}
+  return true
+}
+
+function saveSidebarState(open: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open))
+  } catch {}
+}
 
 type SidebarState = 'expanded' | 'collapsed'
 
@@ -71,7 +87,7 @@ interface SidebarProviderProps {
 function SidebarProvider(props: SidebarProviderProps) {
   const [local, others] = splitProps(props, ['children', 'defaultOpen', 'open', 'onOpenChange', 'style'])
   const isMobile = createMediaQuery('(max-width: 767px)')
-  const [uncontrolledOpen, setUncontrolledOpen] = createSignal(local.defaultOpen ?? true)
+  const [uncontrolledOpen, setUncontrolledOpen] = createSignal(local.defaultOpen ?? loadSidebarState())
   const [openMobile, setOpenMobile] = createSignal(false)
 
   const open = () => (local.open !== undefined ? local.open : uncontrolledOpen())
@@ -101,6 +117,12 @@ function SidebarProvider(props: SidebarProviderProps) {
     }
     window.addEventListener('keydown', handler)
     onCleanup(() => window.removeEventListener('keydown', handler))
+  })
+
+  createEffect(() => {
+    if (local.open === undefined) {
+      saveSidebarState(uncontrolledOpen())
+    }
   })
 
   return (

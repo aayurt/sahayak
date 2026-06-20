@@ -9,7 +9,7 @@ import {
 } from '../ui/dialog'
 import { SidebarTrigger } from '../ui/sidebar'
 import { Command, Sun, Moon, Sparkles, Cpu, X } from 'lucide-solid'
-import { useSettings, toggleTheme } from '../../stores/settings'
+import { useSettings, toggleTheme, toggleJarvis } from '../../stores/settings'
 import { api } from '../../lib/api-client'
 
 interface Workspace {
@@ -65,6 +65,12 @@ export function HUD() {
     const handler = () => toggleTheme()
     window.addEventListener('sahayak:toggle-theme', handler)
     onCleanup(() => window.removeEventListener('sahayak:toggle-theme', handler))
+  })
+
+  createEffect(() => {
+    const handler = () => toggleJarvis()
+    window.addEventListener('sahayak:toggle-jarvis', handler)
+    onCleanup(() => window.removeEventListener('sahayak:toggle-jarvis', handler))
   })
 
   const navigate = useNavigate()
@@ -175,7 +181,7 @@ export function HUD() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSettings('jarvisEnabled', !settings.jarvisEnabled)}
+            onClick={toggleJarvis}
             class={`gap-1.5 text-xs h-7 ${settings.jarvisEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-muted-foreground'}`}
             title={settings.jarvisEnabled ? 'Disable Jarvis' : 'Enable Jarvis'}
           >

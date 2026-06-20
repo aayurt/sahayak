@@ -25,6 +25,7 @@ const [settings, setSettings] = createStore<SettingsState>({
 })
 
 const THEME_KEY = 'sahayak:theme'
+const JARVIS_KEY = 'sahayak:jarvis-enabled'
 
 let themeInitialized = false
 
@@ -48,8 +49,18 @@ export function initTheme() {
       theme = saved
       setSettings('theme', theme)
     }
+    const jarvisSaved = localStorage.getItem(JARVIS_KEY)
+    if (jarvisSaved === 'true' || jarvisSaved === 'false') {
+      setSettings('jarvisEnabled', jarvisSaved === 'true')
+    }
   } catch {}
   document.documentElement.className = theme === 'dark' ? 'dark' : ''
+}
+
+export function toggleJarvis() {
+  const next = !settings.jarvisEnabled
+  setSettings('jarvisEnabled', next)
+  try { localStorage.setItem(JARVIS_KEY, String(next)) } catch {}
 }
 
 export function applyTheme(theme: 'light' | 'dark') {

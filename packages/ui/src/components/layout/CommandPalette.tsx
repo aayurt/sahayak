@@ -1,6 +1,5 @@
-import { createSignal, createEffect, createMemo, For, Show } from 'solid-js'
+import { createSignal, createEffect, createMemo, For, Show, onCleanup } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
-import { Dialog, DialogContent } from '../ui/dialog'
 import { cn } from '../../lib/utils'
 import { Search, ArrowUpDown } from 'lucide-solid'
 
@@ -15,8 +14,11 @@ interface Command {
 export function CommandPalette(props: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = createSignal('')
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  const [visible, setVisible] = createSignal(false)
+  const [animating, setAnimating] = createSignal(false)
   const navigate = useNavigate()
   let inputRef: HTMLInputElement | undefined
+  let listRef: HTMLDivElement | undefined
 
   const commands: Command[] = [
     { id: 'chat', label: 'Open Chat', description: 'Go to chat page', action: () => navigate('/chat'), category: 'nav' },
@@ -45,6 +47,41 @@ export function CommandPalette(props: { open: boolean; onClose: () => void }) {
     { id: 'read-vault', label: 'Read Vault Note...', description: 'Browse vault notes', action: () => { navigate('/knowledge?tab=vault'); props.onClose() }, category: 'actions' },
   ]
 
+  createEffect(() => {
+    if (props.open) {
+      setVisible(true)
+      requestAnimationFrame(() => setAnimating(true))
+      setQuery('')
+      setSelectedIndex(0)
+      requestAnimationFrame(() => inputRef?.focus())
+    } else if (visible()) {
+      setAnimating(false)
+      setTimeout(() => setVisible(false), 150)
+    }
+  })
+
+  createEffect(() => {
+    if (!visible()) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') { props.onClose(); return }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedIndex((i) => Math.min(i + 1, filtered().length - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedIndex((i) => Math.max(i - 1, 0))
+        return
+      }
+      if (e.key === 'Enter' && filtered()[selectedIndex()]) {
+        filtered()[selectedIndex()].action()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    onCleanup(() => document.removeEventListener('keydown', handleKeyDown))
+  })
+
   const filtered = createMemo(() => {
     const q = query().toLowerCase()
     if (!q) return commands
@@ -53,67 +90,70 @@ export function CommandPalette(props: { open: boolean; onClose: () => void }) {
     )
   })
 
-  createEffect(() => {
-    if (props.open) {
-      setQuery('')
-      setSelectedIndex(0)
-      setTimeout(() => inputRef?.focus(), 50)
-    }
-  })
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { props.onClose(); return }
-    if (e.key === 'ArrowDown') { setSelectedIndex((i) => Math.min(i + 1, filtered().length - 1)); return }
-    if (e.key === 'ArrowUp') { setSelectedIndex((i) => Math.max(i - 1, 0)); return }
-    if (e.key === 'Enter' && filtered()[selectedIndex()]) {
-      filtered()[selectedIndex()].action()
-    }
+  const handleOverlayClick = (e: MouseEvent) => {
+    if (e.target === e.currentTarget) props.onClose()
   }
 
   return (
-    <Dialog open={props.open} onOpenChange={(v) => !v && props.onClose()}>
-      <DialogContent class="sm:max-w-[500px] top-[20%] -translate-y-0 p-0 gap-0">
-        <div class="flex items-center gap-2 px-4 py-3 border-b">
-          <Search class="h-4 w-4 shrink-0 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            class="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
-            placeholder="Type a command..."
-            value={query()}
-            onInput={(e) => { setQuery(e.currentTarget.value); setSelectedIndex(0) }}
-            onKeyDown={handleKeyDown}
-          />
-          <kbd class="hidden sm:inline-flex px-1.5 py-0.5 rounded bg-muted text-[10px] font-medium text-muted-foreground">esc</kbd>
-        </div>
-        <div class="max-h-72 overflow-y-auto p-1">
-          <For each={filtered()}>
-            {(cmd, i) => (
-              <button
-                class={cn(
-                  'flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-left text-sm transition-colors cursor-pointer',
-                  i() === selectedIndex() ? 'bg-accent text-accent-foreground' : 'text-foreground',
-                )}
-                onClick={() => cmd.action()}
-                onMouseEnter={() => setSelectedIndex(i())}
-              >
-                <span class="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-muted text-muted-foreground min-w-[3rem]">
-                  {cmd.category}
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate">{cmd.label}</div>
-                  <div class="text-xs text-muted-foreground truncate">{cmd.description}</div>
-                </div>
-              </button>
-            )}
-          </For>
-          <Show when={filtered().length === 0}>
-            <div class="flex flex-col items-center py-8 text-center">
-              <ArrowUpDown class="h-6 w-6 text-muted-foreground/50 mb-2" />
-              <p class="text-sm text-muted-foreground">No commands found</p>
+    <Show when={visible()}>
+      <div
+        class="fixed inset-0 z-50"
+        onClick={handleOverlayClick}
+      >
+        <div
+          class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-150"
+          classList={{ 'opacity-100': animating(), 'opacity-0': !animating() }}
+        />
+        <div class="fixed inset-0 flex items-start justify-center pt-[10vh]">
+          <div
+            class="w-full max-w-[500px] mx-4 rounded-xl border shadow-2xl bg-background overflow-hidden transition-all duration-150"
+            classList={{
+              'opacity-100 scale-100 translate-y-0': animating(),
+              'opacity-0 scale-95 translate-y-2': !animating(),
+            }}
+          >
+            <div class="flex items-center gap-2 px-4 py-3 border-b">
+              <Search class="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input
+                ref={inputRef}
+                class="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
+                placeholder="Type a command..."
+                value={query()}
+                onInput={(e) => { setQuery(e.currentTarget.value); setSelectedIndex(0) }}
+              />
+              <kbd class="hidden sm:inline-flex px-1.5 py-0.5 rounded bg-muted text-[10px] font-medium text-muted-foreground">esc</kbd>
             </div>
-          </Show>
+            <div ref={listRef} class="max-h-72 overflow-y-auto p-1">
+              <For each={filtered()}>
+                {(cmd, i) => (
+                  <button
+                    class={cn(
+                      'flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-left text-sm transition-colors cursor-pointer',
+                      i() === selectedIndex() ? 'bg-accent text-accent-foreground' : 'text-foreground',
+                    )}
+                    onClick={() => cmd.action()}
+                    onMouseEnter={() => setSelectedIndex(i())}
+                  >
+                    <span class="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-muted text-muted-foreground min-w-[3rem]">
+                      {cmd.category}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-medium truncate">{cmd.label}</div>
+                      <div class="text-xs text-muted-foreground truncate">{cmd.description}</div>
+                    </div>
+                  </button>
+                )}
+              </For>
+              <Show when={filtered().length === 0}>
+                <div class="flex flex-col items-center py-8 text-center">
+                  <ArrowUpDown class="h-6 w-6 text-muted-foreground/50 mb-2" />
+                  <p class="text-sm text-muted-foreground">No commands found</p>
+                </div>
+              </Show>
+            </div>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </Show>
   )
 }
