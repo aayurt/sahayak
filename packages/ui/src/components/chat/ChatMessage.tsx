@@ -62,7 +62,7 @@ export function ChatMessage(props: ChatMessageProps) {
 
   return (
     <div
-      class={`flex gap-3 px-4 py-3 ${isUser ? 'bg-muted/50' : 'bg-background'}`}
+      class={`flex gap-3 px-4 py-3 rounded-lg ${isUser ? 'bg-muted/50' : 'bg-background'}`}
     >
       <Avatar
         class={`w-8 h-8 mt-0.5 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
