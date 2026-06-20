@@ -184,6 +184,12 @@ export const api = {
   getAttachmentDataUrl: (sessionId: string, attachmentId: string) =>
     `${BASE}/chat/sessions/${sessionId}/attachments/${attachmentId}/data`,
 
+  // Gemini Auth
+  startGeminiAuth: () =>
+    request<{ ok: boolean; message: string }>('/gemini/auth/start', { method: 'POST' }),
+  saveGeminiAuth: () =>
+    request<{ ok: boolean; message: string; accountNum?: number; path?: string }>('/gemini/auth/save', { method: 'POST' }),
+
   // OpenCode
   restoreOpencodeSession: (sessionId: string) =>
     request<{ port: number; ocSessionId: string }>(`/chat/sessions/${sessionId}/opencode/restore`, { method: 'POST' }),
@@ -215,6 +221,18 @@ export const api = {
 
   // Resources: Git Tree
   getGitTree: (id: string) => request<{ isGitRepo: boolean; branches: string[]; branchCommits: Record<string, any[]> }>(`/resources/${id}/git/tree`),
+
+  // Google Sheets
+  googleAuthUrl: () => request<{ url: string }>('/google/auth/url'),
+  googleAuthStatus: () => request<{ connected: boolean; email?: string }>('/google/auth/status'),
+  googleDisconnect: () => request<{ ok: boolean }>('/google/auth', { method: 'DELETE' }),
+  listSheets: () => request<{ sheets: Array<{ id: string; name: string; updatedAt: string; owner?: string }> }>('/google/sheets'),
+  getSheetData: (id: string, range?: string) => request<{ meta: any; values: string[][] }>(`/google/sheets/${id}${range ? `?range=${encodeURIComponent(range)}` : ''}`),
+  getSheetSummary: (id: string) => request<{ title: string; sheets: Array<{ name: string; rowCount: number; colCount: number; headers: string[]; sampleRow: string[] }> }>(`/google/sheets/${id}/summary`),
+  updateSheetRange: (id: string, range: string, values: string[][]) =>
+    request<{ ok: boolean }>(`/google/sheets/${id}/update`, { method: 'POST', body: JSON.stringify({ range, values }) }),
+  appendSheetRows: (id: string, range: string, values: string[][]) =>
+    request<{ ok: boolean }>(`/google/sheets/${id}/append`, { method: 'POST', body: JSON.stringify({ range, values }) }),
 
   // Worktrees
   qp: (folder?: string) => folder ? `?folder=${encodeURIComponent(folder)}` : '',

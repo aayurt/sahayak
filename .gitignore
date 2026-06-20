@@ -21,6 +21,9 @@ opencodeTmp/
 .sahayak/
 **/gemini_auth_states/
 
+# Artifacts
+anchored-summary.md
+
 # OS
 .vscode/
 

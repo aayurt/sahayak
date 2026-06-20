@@ -7,7 +7,7 @@ function createMockBrowser(overrides?: Partial<GeminiBrowser>): GeminiBrowser {
       content: 'Mock response',
       geminiConversationId: undefined,
     }),
-    sendImagePrompt: vi.fn<[string[], string], Promise<string>>().mockResolvedValue('Mock image analysis'),
+    sendImagePrompt: vi.fn<[string[], string, string?], Promise<GeminiResult>>().mockResolvedValue({ content: 'Mock image analysis', geminiConversationId: undefined }),
     sendWebSearch: vi.fn<[string], Promise<string>>().mockResolvedValue('Mock search results'),
     close: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -36,7 +36,8 @@ describe('GeminiBrowser mock interface', () => {
   it('sendImagePrompt returns analysis text', async () => {
     const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAjR9awAAAABJRU5ErkJggg=='
     const result = await browser.sendImagePrompt([base64], 'Analyze this chart')
-    expect(result).toBe('Mock image analysis')
+    expect(result).toHaveProperty('content', 'Mock image analysis')
+    expect(result).toHaveProperty('geminiConversationId')
   })
 
   it('sendWebSearch returns search results', async () => {

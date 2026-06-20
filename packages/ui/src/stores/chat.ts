@@ -29,6 +29,7 @@ interface ChatMessage {
   createdAt: string
   resources?: ResourceAttachment[]
   attachments?: StoredAttachment[]
+  geminiConversationId?: string
 }
 
 interface Session {
@@ -157,7 +158,11 @@ export async function selectSession(id: string) {
 
   // Load session data FIRST so model is available before updating currentSessionId
   const data = await api.getSession(id)
-  setState('sessionStates', id, 'messages', data.messages || [])
+  const loadedMessages = (data.messages || []).map((m: any) => ({
+    ...m,
+    geminiConversationId: m.metadata?.geminiConversationId,
+  }))
+  setState('sessionStates', id, 'messages', loadedMessages)
 
   // Sync session model into sessions list before the effect fires
   if (data.session) {
@@ -525,37 +530,39 @@ export async function sendGeminiMessage(message: string, attachments?: StoredAtt
   syncFlatFields(sid)
 
   try {
-    let content: string
+    const lastMsg = [...state.sessionStates[sid]?.messages || []].reverse().find(m => m.geminiConversationId)
+    const conversationId = lastMsg?.geminiConversationId
+
+    let data: any
     if (attachments && attachments.length > 0) {
       const images = await Promise.all(attachments.filter(a => !a.uploading).map(a => fetchAttachmentBase64(sid, a)))
       if (images.length === 0) throw new Error('No valid attachments')
       const res = await fetch('/api/gemini/image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, prompt: message, sessionId: sid }),
+        body: JSON.stringify({ images, prompt: message, sessionId: sid, conversationId }),
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
         throw new Error((errBody as any).error || `Gemini image request failed (${res.status})`)
       }
-      const data = await res.json()
-      content = data.content || ''
+      data = await res.json()
     } else {
       const res = await fetch('/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: message, sessionId: sid }),
+        body: JSON.stringify({ prompt: message, sessionId: sid, conversationId }),
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
         throw new Error((errBody as any).error || `Gemini chat request failed (${res.status})`)
       }
-      const data = await res.json()
-      content = data.content || ''
+      data = await res.json()
     }
 
     if (gen !== sessionReaders.get(sid)?.generation) return
 
+    const content = data.content || ''
     if (content) {
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -563,6 +570,7 @@ export async function sendGeminiMessage(message: string, attachments?: StoredAtt
         content,
         model: 'gemini',
         createdAt: new Date().toISOString(),
+        geminiConversationId: data.geminiConversationId,
       }
       setState('sessionStates', sid, 'messages', (m) => [...m, assistantMsg])
       try {

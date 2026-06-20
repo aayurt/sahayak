@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Show, onMount } from 'solid-js'
+import { createResource, createSignal, For, Show, onMount, onCleanup } from 'solid-js'
 import { useSettings, loadPermissionMode, savePermissionMode } from '../stores/settings'
 import { api } from '../lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
@@ -10,7 +10,7 @@ import { Separator } from '../components/ui/separator'
 import {
   Bot, Key, Mic, Save,
   Download, Activity, CheckCircle,
-  RefreshCw, Loader2, Terminal, Play, Square
+  RefreshCw, Loader2, Terminal, Play, Square, Globe, Table, LogOut
 } from 'lucide-solid'
 
 export function SettingsPage() {
@@ -38,6 +38,8 @@ export function SettingsPage() {
   const [workspaces, { refetch: refetchWorkspaces }] = createResource(() => api.listWorkspaces())
   const [launching, setLaunching] = createSignal(false)
   const [launchMsg, setLaunchMsg] = createSignal<string | null>(null)
+  const [authStatus, setAuthStatus] = createSignal<string | null>(null)
+  const [authAccount, setAuthAccount] = createSignal(0)
 
   async function handleLaunchWorkspace() {
     setLaunching(true)
@@ -286,6 +288,93 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Google Sheets */}
+      <Card>
+        <CardHeader class="pb-3">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <Table class="h-4 w-4 text-muted-foreground" />
+            Google Sheets
+          </CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <p class="text-xs text-muted-foreground">
+            Connect your Google account to let the AI read, summarize, and update your spreadsheets.
+          </p>
+          <div class="grid gap-1.5">
+            <label class="text-sm font-medium">Client ID</label>
+            <Input
+              value={settings.googleClientId || ''}
+              onInput={(e) => setSettings('googleClientId', e.currentTarget.value)}
+              placeholder="Paste your Google OAuth Client ID"
+            />
+          </div>
+          <div class="grid gap-1.5">
+            <label class="text-sm font-medium">Client Secret</label>
+            <Input
+              type="password"
+              value={settings.googleClientSecret || ''}
+              onInput={(e) => setSettings('googleClientSecret', e.currentTarget.value)}
+              placeholder="Paste your Google OAuth Client Secret"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            onClick={async () => {
+              await api.updateSettings({
+                google_client_id: settings.googleClientId,
+                google_client_secret: settings.googleClientSecret,
+              })
+            }}
+          >
+            <Save class="h-3.5 w-3.5" />
+            Save Credentials
+          </Button>
+          <div class="flex gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              class="gap-1.5"
+              onClick={async () => {
+                try {
+                  const { url } = await api.googleAuthUrl()
+                  if (url) window.open(url, '_blank')
+                } catch (e) {
+                  console.error('Google auth URL failed:', e)
+                }
+              }}
+            >
+              <Globe class="h-3.5 w-3.5" />
+              Connect to Google
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="gap-1.5"
+              onClick={async () => {
+                const status = await api.googleAuthStatus()
+                alert(status.connected ? `Connected as ${status.email}` : 'Not connected')
+              }}
+            >
+              <RefreshCw class="h-3.5 w-3.5" />
+              Check Status
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="gap-1.5 text-destructive"
+              onClick={async () => {
+                await api.googleDisconnect()
+              }}
+            >
+              <LogOut class="h-3.5 w-3.5" />
+              Disconnect
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Jarvis */}
       <Card>
         <CardHeader class="pb-3">
@@ -310,6 +399,69 @@ export function SettingsPage() {
               onChange={(v) => setSettings('jarvisEnabled', v)}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Gemini Auth */}
+      <Card>
+        <CardHeader class="pb-3">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <Globe class="h-4 w-4 text-muted-foreground" />
+            Gemini Auth
+          </CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <p class="text-xs text-muted-foreground">
+            Generate Playwright auth state for Gemini. Opens a Chrome window — sign in to your Google account, then click Save Auth.
+          </p>
+          <div class="flex gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              class="gap-1.5"
+              onClick={async () => {
+                setAuthStatus('Opening Chrome...')
+                try {
+                  const res = await api.startGeminiAuth()
+                  setAuthStatus(res.message)
+                } catch (e) {
+                  setAuthStatus(`Failed: ${(e as Error).message}`)
+                }
+              }}
+              disabled={authStatus() === 'Opening Chrome...'}
+            >
+              <Globe class="h-3.5 w-3.5" />
+              Start Auth
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="gap-1.5"
+              onClick={async () => {
+                setAuthStatus('Saving...')
+                try {
+                  const res = await api.saveGeminiAuth()
+                  setAuthStatus(res.message || 'Auth saved')
+                  setAuthAccount(res.accountNum || 0)
+                } catch (e) {
+                  setAuthStatus(`Failed: ${(e as Error).message}`)
+                }
+              }}
+              disabled={authStatus() === 'Saving...'}
+            >
+              <Save class="h-3.5 w-3.5" />
+              Save Auth
+            </Button>
+          </div>
+          <Show when={authStatus()}>
+            <p class="text-xs text-muted-foreground">{authStatus()}</p>
+          </Show>
+          <Show when={authAccount() > 0}>
+            <div class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+              <CheckCircle class="h-3 w-3" />
+              gemini-account{authAccount()}.json ready
+            </div>
+          </Show>
         </CardContent>
       </Card>
 

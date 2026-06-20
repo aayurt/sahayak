@@ -8,6 +8,8 @@ interface SettingsState {
   jarvisEnabled: boolean
   theme: 'light' | 'dark'
   permissionMode: 'allow' | 'prompt'
+  googleClientId: string
+  googleClientSecret: string
 }
 
 const [settings, setSettings] = createStore<SettingsState>({
@@ -18,6 +20,8 @@ const [settings, setSettings] = createStore<SettingsState>({
   jarvisEnabled: true,
   theme: 'dark',
   permissionMode: 'prompt',
+  googleClientId: '',
+  googleClientSecret: '',
 })
 
 const THEME_KEY = 'sahayak:theme'
@@ -59,6 +63,12 @@ export async function loadPermissionMode() {
     const data = await res.json() as Record<string, unknown>
     if (data.permissionMode === 'allow' || data.permissionMode === 'prompt') {
       setSettings('permissionMode', data.permissionMode as 'allow' | 'prompt')
+    }
+    if (typeof data.google_client_id === 'string') {
+      setSettings('googleClientId', data.google_client_id)
+    }
+    if (typeof data.google_client_secret === 'string') {
+      setSettings('googleClientSecret', data.google_client_secret)
     }
   } catch { /* ignore */ }
 }

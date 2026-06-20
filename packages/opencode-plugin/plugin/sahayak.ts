@@ -1,17 +1,19 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { createSahayakClient, getSahayakConfig } from "./lib/client.js"
 import { createBackgroundProcessTools } from "./lib/background-process.js"
+import { createGoogleSheetsTools } from "./lib/google-sheets.js"
 
 let voiceModeEnabled = false
 
 export async function SahayakPlugin(input: PluginInput): Promise<{
-  tool: ReturnType<typeof createBackgroundProcessTools>
+  tool: ReturnType<typeof createBackgroundProcessTools> & ReturnType<typeof createGoogleSheetsTools>
   "chat.message": ChatMessageHook
   event: EventHook
 }> {
   const config = getSahayakConfig()
   const client = createSahayakClient(config)
   const backgroundProcessTools = createBackgroundProcessTools(config, { baseDir: input.directory })
+  const googleSheetsTools = createGoogleSheetsTools(config)
 
   await client.startEvents((event) => {
     if (event.type === "sahayak.ping") {
@@ -30,6 +32,7 @@ export async function SahayakPlugin(input: PluginInput): Promise<{
   return {
     tool: {
       ...backgroundProcessTools,
+      ...googleSheetsTools,
     },
     async "chat.message"(_input: { sessionID: string }, output: { message: { system?: string } }) {
       if (!voiceModeEnabled) return

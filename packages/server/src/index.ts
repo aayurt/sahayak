@@ -25,6 +25,7 @@ import { cronRouter } from './routes/cron'
 import { knowledgeRouter } from './routes/knowledge'
 import { vaultRouter } from './routes/vault'
 import { geminiRouter } from './routes/gemini'
+import { googleRouter } from './routes/google'
 import { createGeminiBrowser } from './services/gemini'
 import { loadCronJobs, stopAllJobs } from './cron'
 import { watchSkills } from './services/skills-watcher'
@@ -114,6 +115,7 @@ export async function createSahayakServer(opts: ServerOptions) {
   app.use('/api/knowledge', knowledgeRouter())
   app.use('/api/vault', vaultRouter())
   app.use('/api/gemini', geminiRouter({ createBrowser: createGeminiBrowser }))
+  app.use('/api/google', googleRouter())
   app.use('/api/opencode', opencodeRouter(workspaceManager, bgProcessManager))
 
   // Preview system

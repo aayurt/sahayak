@@ -19,7 +19,7 @@ export interface GeminiResult {
 
 export interface GeminiBrowser {
   sendTextPrompt(prompt: string, conversationId?: string): Promise<GeminiResult>
-  sendImagePrompt(images: string[], prompt: string): Promise<string>
+  sendImagePrompt(images: string[], prompt: string, conversationId?: string): Promise<GeminiResult>
   sendWebSearch(query: string): Promise<string>
   close(): Promise<void>
 }
@@ -28,12 +28,12 @@ function getAuthStatesDir(): string {
   return join(homedir(), '.sahayak', 'gemini-auth-states')
 }
 
-function pickRandomAccount(): string | undefined {
+function pickAccount(): string | undefined {
   const dir = getAuthStatesDir()
   if (!existsSync(dir)) return undefined
   const files = readdirSync(dir).filter(f => f.startsWith('gemini-account') && f.endsWith('.json'))
   if (files.length === 0) return undefined
-  return join(dir, files[Math.floor(Math.random() * files.length)])
+  return join(dir, files[0])
 }
 
 export async function createGeminiBrowser(headless = true): Promise<GeminiBrowser> {
@@ -45,7 +45,8 @@ export async function createGeminiBrowser(headless = true): Promise<GeminiBrowse
 
   async function ensureBrowser() {
     if (page && !page.isClosed()) return
-    const storageStatePath = pickRandomAccount()
+    const storageStatePath = pickAccount()
+    console.log('[gemini] ensureBrowser account:', storageStatePath)
     browser = await chromium.launch({
       headless,
       args: [
@@ -66,16 +67,27 @@ export async function createGeminiBrowser(headless = true): Promise<GeminiBrowse
     const startUrl = conversationId
       ? `https://gemini.google.com/app/${conversationId}`
       : 'https://gemini.google.com/app'
+    console.log('[gemini] navigateToGemini startUrl:', startUrl)
     await page.goto(startUrl, { waitUntil: 'load', timeout: 30000 })
 
-    const currentUrl = page.url()
+    let currentUrl = page.url()
+    console.log('[gemini] navigateToGemini currentUrl:', currentUrl)
     const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 500))
     if (currentUrl.includes('sorry') || bodyText.includes('unusual traffic') || bodyText.includes('not a robot')) {
       throw new Error('CAPTCHA_BLOCKED')
     }
 
+    if (conversationId && !currentUrl.includes(conversationId)) {
+      console.log('[gemini] conversation URL redirected, falling back to base app')
+      await page.goto('https://gemini.google.com/app', { waitUntil: 'load', timeout: 30000 })
+    }
+
     const textarea = page.locator(GEMINI_SELECTORS.textarea)
     await textarea.waitFor({ state: 'visible', timeout: 30000 })
+
+    if (conversationId) {
+      await page.waitForTimeout(3000)
+    }
 
     const consentButton = page.locator(GEMINI_SELECTORS.consentButton)
     if (await consentButton.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -101,8 +113,10 @@ export async function createGeminiBrowser(headless = true): Promise<GeminiBrowse
     await stopButton.waitFor({ state: 'detached', timeout: 120000 }).catch(() => {})
     await page.waitForTimeout(2000)
 
-    const geminiMatch = page.url().match(/\/app\/([a-f0-9]+)/)
+    const afterUrl = page.url()
+    const geminiMatch = afterUrl.match(/\/app\/([a-zA-Z0-9_-]+)/)
     const geminiConversationId = geminiMatch ? geminiMatch[1] : undefined
+    console.log('[gemini] sendPrompt afterUrl:', afterUrl, 'geminiConversationId:', geminiConversationId)
 
     const text_response = await page.evaluate(() => {
       const fullText = document.body.innerText
@@ -142,8 +156,9 @@ export async function createGeminiBrowser(headless = true): Promise<GeminiBrowse
       return result
     },
 
-    async sendImagePrompt(images: string[], prompt: string): Promise<string> {
-      await navigateToGemini()
+    async sendImagePrompt(images: string[], prompt: string, conversationId?: string): Promise<GeminiResult> {
+      console.log('[gemini] sendImagePrompt conversationId:', conversationId)
+      await navigateToGemini(conversationId)
 
       const staySignedOut = page.locator(GEMINI_SELECTORS.staySignedOutButton)
       if (await staySignedOut.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -178,7 +193,7 @@ export async function createGeminiBrowser(headless = true): Promise<GeminiBrowse
       await page.waitForTimeout(3000)
 
       const result = await sendPrompt(prompt)
-      return result.content
+      return result
     },
 
     async sendWebSearch(query: string): Promise<string> {

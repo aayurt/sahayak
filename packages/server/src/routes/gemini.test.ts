@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import { geminiRouter } from './gemini'
+import type { GeminiResult } from '../services/gemini'
 
 function createMockApp() {
   const app = express()
@@ -9,7 +10,7 @@ function createMockApp() {
 
   const mockBrowser = {
     sendTextPrompt: vi.fn().mockResolvedValue({ content: 'Mock response', geminiConversationId: 'conv_123' }),
-    sendImagePrompt: vi.fn<[string[], string], Promise<string>>().mockResolvedValue('Mock image analysis'),
+    sendImagePrompt: vi.fn<[string[], string, string?], Promise<GeminiResult>>().mockResolvedValue({ content: 'Mock image analysis', geminiConversationId: 'conv_img_123' }),
     sendWebSearch: vi.fn().mockResolvedValue('Mock search results'),
     close: vi.fn().mockResolvedValue(undefined),
   }
@@ -71,7 +72,8 @@ describe('Gemini API routes', () => {
       .expect(200)
 
     expect(res.body).toHaveProperty('content', 'Mock image analysis')
-    expect(mockBrowser.sendImagePrompt).toHaveBeenCalledWith(['base64data'], 'Analyze this chart')
+    expect(res.body).toHaveProperty('geminiConversationId', 'conv_img_123')
+    expect(mockBrowser.sendImagePrompt).toHaveBeenCalledWith(['base64data'], 'Analyze this chart', undefined)
     expect(mockBrowser.close).toHaveBeenCalledOnce()
   })
 
