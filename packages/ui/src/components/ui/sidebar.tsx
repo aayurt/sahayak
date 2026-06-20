@@ -185,7 +185,7 @@ function Sidebar(props: SidebarProps) {
           data-collapsible={collapsible()}
           data-state={sidebar.state()}
           class={cn(
-            'group/sidebar flex h-svh flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200 ease-linear',
+            'group/sidebar flex h-svh flex-col bg-sidebar/60 backdrop-blur-sm border-r border-sidebar-border transition-all duration-200 ease-linear',
             side() === 'left' && 'left-0',
             side() === 'right' && 'right-0 border-l border-r-0',
             variant() === 'floating' && 'rounded-xl border shadow-lg',

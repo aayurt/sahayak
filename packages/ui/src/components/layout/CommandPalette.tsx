@@ -100,7 +100,7 @@ export function CommandPalette(props: { open: boolean; onClose: () => void }) {
         />
         <div class="fixed inset-0 flex items-start justify-center pt-[10vh]">
           <div
-            class="w-full max-w-[500px] mx-4 rounded-xl border shadow-2xl bg-background overflow-hidden transition-all duration-150"
+            class="w-full max-w-[500px] mx-4 rounded-xl border border-border/50 shadow-2xl bg-background/70 backdrop-blur-xl overflow-hidden transition-all duration-150"
             classList={{
               'opacity-100 scale-100 translate-y-0': animating(),
               'opacity-0 scale-95 translate-y-2': !animating(),

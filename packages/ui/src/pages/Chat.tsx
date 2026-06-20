@@ -388,7 +388,7 @@ export function ChatPage() {
 
       {/* Session sidebar */}
       <Show when={sidebarOpen()}>
-        <div class="w-60 shrink-0 border-r border-border/50 flex flex-col bg-muted/10 glass-card z-10 relative">
+        <div class="w-60 shrink-0 border-r border-border/30 flex flex-col bg-sidebar/50 backdrop-blur-md z-10 relative">
           <div class="p-3 border-b border-border/50">
             <Button
               variant="secondary"
@@ -446,7 +446,7 @@ export function ChatPage() {
       <div class="flex-1 flex flex-col min-w-0 relative">
         {/* Header bar */}
 
-        <div class="flex items-center justify-between px-4 h-12 border-b border-border/30 shrink-0 bg-background/40 backdrop-blur-xl z-10">
+        <div class="flex items-center justify-between px-4 h-12 border-b border-border/20 shrink-0 bg-background/50 backdrop-blur-xl z-10">
           <div class="flex items-center gap-2">
             <Show when={!sidebarOpen()}>
               <Button variant="ghost" size="icon" class="h-7 w-7" onClick={() => setSidebarOpen(true)} title="Show sidebar">

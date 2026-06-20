@@ -12,6 +12,7 @@ import { SettingsPage } from './pages/Settings'
 import { TerminalPage } from './pages/Terminal'
 import { JarvisOverlay } from './components/jarvis/JarvisOverlay'
 import { useSettings, initTheme, applyTheme } from './stores/settings'
+import { AuroraBackground } from './components/ui/aurora-background'
 import type { JSX } from 'solid-js'
 
 function RootLayout(props: { children?: JSX.Element }) {
@@ -23,8 +24,8 @@ function RootLayout(props: { children?: JSX.Element }) {
   })
 
   return (
-    <SidebarProvider>
-      <div class="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+    <AuroraBackground class="items-stretch justify-start bg-background dark:bg-background text-foreground p-0">
+      <SidebarProvider>
         <Sidebar />
         <div class="flex-1 flex flex-col min-w-0">
           <HUD />
@@ -33,8 +34,8 @@ function RootLayout(props: { children?: JSX.Element }) {
           </main>
         </div>
         {settings.jarvisEnabled && <JarvisOverlay />}
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </AuroraBackground>
   )
 }
 

@@ -98,7 +98,7 @@ export function HUD() {
 
   return (
     <>
-      <div class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-9 px-3 border-b bg-background text-muted-foreground text-xs">
+      <div class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-9 px-3 border-b border-border/50 bg-background/60 backdrop-blur-xl text-muted-foreground text-xs">
         <div class="flex items-center gap-1">
           <SidebarTrigger class="h-7 w-7" />
           <Button variant="ghost" size="sm" onClick={() => setPaletteOpen(true)} class="gap-1.5 text-xs h-7">
