@@ -90,19 +90,13 @@ export function CommandPalette(props: { open: boolean; onClose: () => void }) {
     )
   })
 
-  const handleOverlayClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget) props.onClose()
-  }
-
   return (
     <Show when={visible()}>
-      <div
-        class="fixed inset-0 z-50"
-        onClick={handleOverlayClick}
-      >
+      <div class="fixed inset-0 z-50">
         <div
           class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-150"
           classList={{ 'opacity-100': animating(), 'opacity-0': !animating() }}
+          onClick={props.onClose}
         />
         <div class="fixed inset-0 flex items-start justify-center pt-[10vh]">
           <div
