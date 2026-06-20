@@ -3,6 +3,23 @@ import { useParams, useNavigate } from '@solidjs/router'
 import { useChatStore, loadSessions, createSession, selectSession, renameSession, sendMessage as storeSendMessage, sendGeminiMessage, sendPermissionResponse, toggleAutoAccept, syncAutoAccept, abortStream, setAttachedResources as storeSetAttachedResources } from '../stores/chat'
 import type { ResourceAttachment, StoredAttachment } from '../stores/chat'
 import { api } from '../lib/api-client'
+
+const CHAT_SIDEBAR_KEY = 'sahayak:chat-sidebar-open'
+
+function loadChatSidebarState(): boolean {
+  try {
+    const saved = localStorage.getItem(CHAT_SIDEBAR_KEY)
+    if (saved === 'true') return true
+    if (saved === 'false') return false
+  } catch {}
+  return true
+}
+
+function saveChatSidebarState(open: boolean) {
+  try {
+    localStorage.setItem(CHAT_SIDEBAR_KEY, String(open))
+  } catch {}
+}
 import { ChatMessage } from '../components/chat/ChatMessage'
 import { Composer } from '../components/chat/Composer'
 import { ModelSelector } from '../components/chat/ModelSelector'
@@ -14,7 +31,7 @@ import { AgentPlan } from '../components/agent/agent-plan'
 import { QuestionTool } from '../components/agent/question-tool'
 import { PermissionNotificationBanner } from '../components/permission/permission-notification-banner'
 import { PermissionApprovalModal } from '../components/permission/permission-approval-modal'
-import { Plus, MessageSquare, Trash2, Edit3, RefreshCw, Sparkles, FolderKanban, GitBranch, ChevronDown, X, ListChecks } from 'lucide-solid'
+import { Plus, MessageSquare, PanelLeft, Trash2, Edit3, RefreshCw, Sparkles, FolderKanban, GitBranch, ChevronDown, X, ListChecks } from 'lucide-solid'
 
 export function ChatPage() {
   const params = useParams<{ sessionId?: string }>()
@@ -24,7 +41,11 @@ export function ChatPage() {
   const modelLocked = () => state.messages.length > 0
   const [geminiFiles, setGeminiFiles] = createSignal<StoredAttachment[]>([])
   const [_systemPrompt, _setSystemPrompt] = createSignal('')
-  const [sidebarOpen, setSidebarOpen] = createSignal(true)
+  const [sidebarOpen, setSidebarOpen] = createSignal(loadChatSidebarState())
+
+  createEffect(() => {
+    saveChatSidebarState(sidebarOpen())
+  })
   const [renamingSessionId, setRenamingSessionId] = createSignal<string | null>(null)
   const [renameValue, setRenameValue] = createSignal('')
   const [resourceModalOpen, setResourceModalOpen] = createSignal(false)
@@ -428,13 +449,13 @@ export function ChatPage() {
         <div class="flex items-center justify-between px-4 h-12 border-b border-border/30 shrink-0 bg-background/40 backdrop-blur-xl z-10">
           <div class="flex items-center gap-2">
             <Show when={!sidebarOpen()}>
-              <Button variant="ghost" size="icon" class="h-7 w-7" onClick={() => setSidebarOpen(true)}>
-                <MessageSquare class="h-4 w-4" />
+              <Button variant="ghost" size="icon" class="h-7 w-7" onClick={() => setSidebarOpen(true)} title="Show sidebar">
+                <PanelLeft class="h-4 w-4" />
               </Button>
             </Show>
             <Show when={sidebarOpen()}>
-              <Button variant="ghost" size="icon" class="h-7 w-7" onClick={() => setSidebarOpen(false)}>
-                <MessageSquare class="h-4 w-4" />
+              <Button variant="ghost" size="icon" class="h-7 w-7" onClick={() => setSidebarOpen(false)} title="Hide sidebar">
+                <PanelLeft class="h-4 w-4" />
               </Button>
             </Show>
             <Show when={state.currentSessionId}>
