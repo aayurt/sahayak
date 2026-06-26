@@ -66,7 +66,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div class="flex flex-col min-h-0 flex-1">
+    <div class="h-screen overflow-y-auto">
       <div class="sticky top-0 z-10 bg-background/80 backdrop-blur-sm px-6 py-4 border-b border-border/20">
         <div class="flex items-center justify-between max-w-2xl mx-auto">
           <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
@@ -76,7 +76,6 @@ export function SettingsPage() {
           </Button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto">
         <div class="max-w-2xl mx-auto space-y-6 p-6">
 
       {/* Backend Health */}
@@ -546,7 +545,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
         </div>
-      </div>
     </div>
   )
 }
